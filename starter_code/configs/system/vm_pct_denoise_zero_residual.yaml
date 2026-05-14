@@ -1,0 +1,4 @@
+__target__: vm
+
+ckpt_save_dir: experiments/vm_pct_denoise_zero_residual
+ckpt_save_name: checkpoint

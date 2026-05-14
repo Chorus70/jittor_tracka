@@ -1,0 +1,24 @@
+mode: train
+debug: False
+load_ckpt: experiments/vm_flow_ft/checkpoint_19_expanded.pkl
+
+components:
+  data: train_fast
+  transform: score_dsm
+  model: vm_score_dsm
+  system: vm_score_dsm_expanded_ft
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00005
+
+trainer:
+  epochs: 8
+  save_every: 1
+  save_every_steps: 100
+  lr_decay: 0.5
+  lr_decay_every: 4
+  loss_ema_alpha: 0.98

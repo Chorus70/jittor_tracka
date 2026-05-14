@@ -1,0 +1,14 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_flow_surface_latent_ft/checkpoint_e0_s100.pkl
+
+components:
+  data: predict_local_eval_mesh_20
+  transform: predict
+  system: vm_flow_surface_latent_ft
+  model: vm_flow_surface_latent_ft
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_mesh_20_flow_surface_latent_e0_s100
+  save_name: denoised

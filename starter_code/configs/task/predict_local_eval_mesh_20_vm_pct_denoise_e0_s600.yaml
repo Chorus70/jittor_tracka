@@ -1,0 +1,15 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_pct_denoise/checkpoint_e0_s600.pkl
+
+components:
+  data: predict_local_eval_mesh_20
+  transform: predict
+  model: vm_pct_denoise
+  system: vm_pct_denoise
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_mesh_20_pct_denoise_e0_s600
+  save_name: denoised
+  output_format: npy

@@ -1,0 +1,33 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+*.so
+
+# Data and generated evaluation artifacts
+dataset_train/
+dataset_train.tar
+dataset_test_noisy/
+starter_code/dataset_train/
+starter_code/dataset_test_noisy/
+starter_code/dataset_test_noisy
+starter_code/local_eval*/
+starter_code/results*/
+starter_code/post_grid*/
+starter_code/result*.zip
+starter_code/tmp_postprocess_chunks/
+
+# Training outputs
+starter_code/experiments/
+starter_code/logs/
+starter_code/*.log
+starter_code/logs_*.log
+starter_code/logs*.log
+
+# Jittor/cache/runtime files
+.cache/
+jittor_home/
+*/__pycache__/
+
+# Local tooling state
+.agents/
+.codex/

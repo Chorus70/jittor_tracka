@@ -1,0 +1,17 @@
+__target__: VelocityModule
+frame_knn: 20
+num_train_points: 512
+feat_embedding_dim: 384
+decoder_hidden_dim: 128
+dsm_sigma: 0.01
+use_global_feature: True
+use_input_coords: True
+use_noise_condition: True
+noise_condition_ref: 0.0125
+noise_condition_min: 0.004
+noise_condition_max: 0.024
+predict_noise_std: 0.0125
+predict_num_steps: 1
+predict_patch_size: 1600
+predict_seed_k: 5
+predict_seed_k_alpha: 1

@@ -1,0 +1,15 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_edge_pct_ms_score/checkpoint_e0_s200.pkl
+
+components:
+  data: predict_local_eval_testcats_100
+  transform: predict
+  model: vm_edge_pct_ms_score
+  system: vm_edge_pct_ms_score
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_testcats_100_edge_pct_ms_score_e0_s200
+  save_name: denoised
+  output_format: npy

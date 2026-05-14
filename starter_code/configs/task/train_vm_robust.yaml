@@ -1,0 +1,21 @@
+mode: train
+debug: False
+
+components:
+  data: train
+  transform: robust
+  system: vm
+  model: vm_robust
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.0001
+
+trainer:
+  epochs: 160
+  save_every: 5
+  lr_decay: 0.7
+  lr_decay_every: 40

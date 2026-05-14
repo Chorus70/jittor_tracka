@@ -1,0 +1,20 @@
+__target__: VelocityModule
+frame_knn: 20
+num_train_points: 512
+feat_embedding_dim: 384
+decoder_hidden_dim: 128
+dsm_sigma: 0.01
+loss_type: huber
+huber_delta: 0.01
+use_global_feature: True
+use_input_coords: True
+multi_scale_knns: [12, 36]
+multi_scale_embedding_dim: 256
+multi_scale_weight: 0.02
+repulsion_weight: 0.01
+repulsion_k: 6
+repulsion_h: 0.018
+predict_num_steps: 1
+predict_patch_size: 1600
+predict_seed_k: 5
+predict_seed_k_alpha: 1

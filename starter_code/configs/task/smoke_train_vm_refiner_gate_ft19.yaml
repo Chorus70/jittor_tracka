@@ -1,0 +1,20 @@
+mode: train
+debug: False
+
+components:
+  data: train_smoke
+  transform: finetune_refiner
+  system: vm_refiner_gate_ft19
+  model: vm_refiner_gate_ft19
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00002
+
+trainer:
+  epochs: 1
+  save_every: 0
+  loss_ema_alpha: 0.98

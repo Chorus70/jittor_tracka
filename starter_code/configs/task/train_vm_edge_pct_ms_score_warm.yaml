@@ -1,0 +1,24 @@
+mode: train
+debug: False
+load_ckpt: experiments/vm_edge_pct_ms_score/warmstart_from_ft19.pkl
+
+components:
+  data: train_fast_b8
+  transform: finetune_score_hybrid
+  model: vm_edge_pct_ms_score
+  system: vm_edge_pct_ms_score_warm
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00003
+
+trainer:
+  epochs: 8
+  save_every: 1
+  save_every_steps: 200
+  lr_decay: 0.6
+  lr_decay_every: 3
+  loss_ema_alpha: 0.98

@@ -1,0 +1,14 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_refiner_pct_neighbor_pointgate_ft19/checkpoint_e0_s100.pkl
+
+components:
+  data: predict_local_eval_mesh_20
+  transform: predict
+  system: vm_refiner_pct_neighbor_pointgate_ft19
+  model: vm_refiner_pct_neighbor_pointgate_ft19_s075
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_mesh_20_refiner_pct_neighbor_pointgate_ft19_e0_s100_s075
+  save_name: denoised

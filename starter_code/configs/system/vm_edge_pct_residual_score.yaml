@@ -1,0 +1,4 @@
+__target__: vm
+
+ckpt_save_dir: experiments/vm_edge_pct_residual_score
+ckpt_save_name: checkpoint

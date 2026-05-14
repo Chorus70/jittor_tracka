@@ -1,0 +1,22 @@
+mode: train
+debug: False
+
+components:
+  data: train_fast_b8
+  transform: finetune_pct_direct
+  model: vm_pct_denoise_direct_noisy
+  system: vm_pct_denoise_direct_noisy
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00005
+
+trainer:
+  epochs: 1
+  save_every: 0
+  max_steps_per_epoch: 1
+  lr_decay: 1.0
+  loss_ema_alpha: 0.98

@@ -1,0 +1,23 @@
+mode: train
+debug: False
+
+components:
+  data: train_fast_b8
+  transform: finetune_score_hybrid
+  model: vm_edge_pct_ms_score
+  system: vm_edge_pct_ms_score
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00008
+
+trainer:
+  epochs: 12
+  save_every: 1
+  save_every_steps: 200
+  lr_decay: 0.6
+  lr_decay_every: 4
+  loss_ema_alpha: 0.98

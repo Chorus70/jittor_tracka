@@ -1,0 +1,21 @@
+mode: train
+debug: False
+
+components:
+  data: train_fast
+  transform: score_dsm
+  model: vm_score_dsm
+  system: vm_score_dsm
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.0002
+
+trainer:
+  epochs: 1
+  save_every: 0
+  save_every_steps: 1
+  loss_ema_alpha: 0.98

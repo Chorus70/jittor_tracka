@@ -1,0 +1,24 @@
+mode: train
+debug: False
+load_ckpt: experiments/vm_pct/checkpoint_e0_s100.pkl
+
+components:
+  data: train_fast_b8
+  transform: robust
+  model: vm_pct
+  system: vm_pct
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00005
+
+trainer:
+  epochs: 4
+  save_every: 1
+  save_every_steps: 100
+  lr_decay: 0.7
+  lr_decay_every: 2
+  loss_ema_alpha: 0.98

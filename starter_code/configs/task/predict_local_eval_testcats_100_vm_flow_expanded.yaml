@@ -1,0 +1,15 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_flow_ft/checkpoint_19_expanded.pkl
+
+components:
+  data: predict_local_eval_testcats_100
+  transform: predict
+  system: vm_flow_ft
+  model: vm_flow_ft
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_testcats_100_flow_expanded
+  save_name: denoised
+  output_format: npy

@@ -1,0 +1,23 @@
+mode: train
+debug: False
+
+components:
+  data: train_fast_b8
+  transform: robust
+  model: vm_pct
+  system: vm_pct
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.0001
+
+trainer:
+  epochs: 8
+  save_every: 1
+  save_every_steps: 100
+  lr_decay: 0.7
+  lr_decay_every: 3
+  loss_ema_alpha: 0.98

@@ -1,0 +1,15 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_pct_flow_conditioned/checkpoint_e0_s100.pkl
+
+components:
+  data: predict_local_eval_testcats_100
+  transform: predict
+  model: vm_pct_flow_conditioned
+  system: vm_pct_flow_conditioned
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_testcats_100_pct_flow_conditioned_e0_s100_fixagg
+  save_name: denoised
+  output_format: npy

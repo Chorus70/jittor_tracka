@@ -1,0 +1,4 @@
+__target__: vm
+
+ckpt_save_dir: experiments/vm_surface_teacher_ft
+ckpt_save_name: checkpoint

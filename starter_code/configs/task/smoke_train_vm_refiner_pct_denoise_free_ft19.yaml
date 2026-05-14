@@ -1,0 +1,22 @@
+mode: train
+debug: False
+
+components:
+  data: train_smoke
+  transform: finetune_normal
+  model: vm_refiner_pct_denoise_free_ft19
+  system: vm_refiner_pct_denoise_free_ft19
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00004
+
+trainer:
+  epochs: 1
+  save_every: 0
+  save_every_steps: 0
+  lr_decay: 1.0
+  loss_ema_alpha: 0.98

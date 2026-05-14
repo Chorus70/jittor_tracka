@@ -1,0 +1,21 @@
+mode: train
+debug: False
+load_ckpt: experiments/vm_finetune/checkpoint_19.pkl
+
+components:
+  data: train_smoke
+  transform: finetune_stable
+  system: vm_flow_ft
+  model: vm_flow_ft
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.00001
+
+trainer:
+  epochs: 1
+  save_every: 0
+  loss_ema_alpha: 0.98

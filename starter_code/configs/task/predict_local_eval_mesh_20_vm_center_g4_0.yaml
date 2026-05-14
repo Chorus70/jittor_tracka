@@ -1,0 +1,14 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_center_ft_g4/checkpoint_0.pkl
+
+components:
+  data: predict_local_eval_mesh_20
+  transform: predict
+  system: vm_center_ft
+  model: vm_center_ft_g4
+
+writer:
+  __target__: vm
+  save_dir: results_local_eval_mesh_20_center_g4_0
+  save_name: denoised

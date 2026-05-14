@@ -1,0 +1,14 @@
+predict_dataset:
+  shuffle: False
+  batch_size: 1
+  num_workers: 0
+  datapath:
+    input_dataset_dir: ./local_eval/noisy
+    use_prob: False
+    loader: npy
+    data_name: noisy.npy
+    ignore_check: False
+    data_path:
+      shapenet: [
+        [./local_eval/test_10.txt, 1.0],
+      ]
