@@ -1,8 +1,11 @@
 from .spec import ModelSpec
+from .low_noise_refiner import AlphaGateRefiner, LowNoiseAdaptiveRefiner
 from .vm import VelocityModule
 
 def get_model(model_config, **kwargs) -> ModelSpec:
     MAP = {
+        'LowNoiseAdaptiveRefiner': LowNoiseAdaptiveRefiner,
+        'AlphaGateRefiner': AlphaGateRefiner,
         'VelocityModule': VelocityModule,
     }
     __target__ = model_config['__target__']

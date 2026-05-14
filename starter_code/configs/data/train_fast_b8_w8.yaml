@@ -1,0 +1,18 @@
+data_name: &data_name models/model_normalized.obj
+loader: &loader obj
+
+train_dataset:
+  shuffle: True
+  batch_size: 8
+  num_workers: 8
+  datapath:
+    input_dataset_dir: ./dataset_train
+    use_prob: True
+    num_files: 12000
+    loader: *loader
+    data_name: *data_name
+    ignore_check: False
+    data_path:
+      shapenet: [
+        [./datalist/train.txt, 1.0],
+      ]

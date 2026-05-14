@@ -368,12 +368,12 @@ mean_P2S_noisy = 0.000196
 - 两项同时提升，强烈说明旧主线位移过强，适当回退到 noisy 方向是正确的。
 - 但只靠全局 alpha 很可能不足以稳定达到 70，因为 mean 指标二次拟合显示 CD/P2S 最优点可能在 0.6-0.85 附近，而不是无限降低 alpha。
 
-### 8.4 Current Candidate
+### 8.4 Current Deliverable Candidate
 
-当前工作目录里的 `result.zip` 已切换到：
+当前工作目录里的 `starter_code/result.zip` 已切换回已获得官方反馈的最佳包：
 
 ```text
-results_test_v6_blend_noisy_official_a650.zip
+results_test_v6_blend_noisy_official_a850.zip
 ```
 
 验证内容：
@@ -383,14 +383,27 @@ files = 200
 shape = (50000, 3)
 dtype = float32
 non-finite = 0
+sha256 = 22590557f6e7ad34d658b581b4939bfb7ba9ae6ca32c2540bf6873c75979abb2
 ```
 
-该候选尚未获得官方分数。选择理由：
+该候选已有官方分数：
 
-- `alpha=0.85` 明确优于 `alpha=1.0`。
-- 仅根据两个官方点线性外推会鼓励继续降低 alpha，但 noisy 本身得分为 0，因此真实曲线必然有峰值。
-- 用 mean 指标做粗略二次拟合，CD 的较优区间可能靠近 0.6-0.7，P2S 较优区间靠近 0.8。
-- 因此优先提交 `alpha=0.65` 作为第三个官方锚点，再决定是否转向自适应 alpha。
+```text
+score          = 59.37
+CD_score       = 44.81
+P2S_score      = 73.94
+mean_CD_pred   = 0.000137
+mean_CD_noisy  = 0.000246
+mean_P2S_pred  = 0.000076
+mean_P2S_noisy = 0.000196
+```
+
+选择理由：
+
+- 这是目前所有已经获得官方反馈的提交中最高的分数。
+- 后续低 alpha / 新候选官方反馈约为 59 分，没有形成明显突破。
+- 新的 sklearn/AlphaGate 方向目前只在 official-like validation 上验证，尚未生成可直接信任的官方测试提交包。
+- 因此当前可交付 `result.zip` 应优先保证已知有效，而不是提交未经官方验证的实验候选。
 
 ## 9. Code Logic Added During Exploration
 
@@ -459,17 +472,23 @@ denoised = noisy + alpha * (pred - noisy)
 6. 提交本地最优 `v6_geom_plan_gate` 后，官方只得 52.56。
 7. 根据官方 mean 指标判断：官方集噪声低，旧主线过处理。
 8. 生成 alpha blend 候选，提交 `alpha=0.85` 后官方升到 59.37。
-9. 当前选择 `alpha=0.65` 作为第三个官方 probe。
-10. 如果 `alpha=0.65` 仍不足 70，下一步应做自适应 alpha，而不是继续盲目训练。
+9. 进一步构造 official-like validation，把 `mean_CD_noisy` 校准到接近官方量级。
+10. 在 official-like validation 上确认：全局 alpha 的收益有限，点级 alpha/gate 才是后续主线。
+11. 通过 oracle 分析发现，沿 base 方向的每点最优 alpha 可把本地 official-like 分数从 64.76 提到 71.81，说明 base 方向不是核心瓶颈，核心是每点 step/gate 控制。
+12. 训练 sklearn alpha gate 后，OOF 分数达到 66.16，证明自适应 gate 有真实泛化收益，但仍未接近 oracle。
+13. 因此新增 `AlphaGateRefiner`，准备通过 Jittor 长训练学习正式的点级 alpha head。
 
 ## 11. Recommended Next Steps
 
 当前最有依据的下一步：
 
-1. 提交当前 `result.zip` (`alpha=0.65`) 获取官方分数。
-2. 若 `alpha=0.65` 比 `alpha=0.85` 好，则继续测试 `alpha=0.55` 或按类别降低 alpha。
-3. 若 `alpha=0.65` 差于 `alpha=0.85`，峰值在 0.65-1.0 之间，测试 `alpha=0.75`。
-4. 有三个以上官方点后，按 CD/P2S 分别拟合 alpha 曲线，再设计类别/几何自适应：
+1. 当前先交付已知官方最佳 `result.zip` (`alpha=0.85`)。
+2. 启动 `AlphaGateRefiner` 长训练，固定 base VM 方向，只学习每点 alpha。
+3. 训练结束后，对 official-like validation 预测并评估 CD/P2S。
+4. 如果 AlphaGate checkpoint 超过 sklearn OOF 66.16，生成官方测试集预测包作为下一版提交。
+5. 如果 AlphaGate 未超过 sklearn OOF，则说明训练数据/特征仍不足，需要把 sklearn gate 的几何特征或 oracle alpha 监督更直接地并入模型。
+
+自适应 alpha 的设计依据：
 
 ```text
 flat/simple geometry: lower alpha, stronger denoising rollback
@@ -483,7 +502,171 @@ thin/edge-rich geometry: higher alpha, preserve surface projection
 - 损失函数需要同时约束 surface proximity 和 distribution preservation。
 - 使用 validation noise schedule 接近官方 `mean_CD_noisy ~= 0.000246`。
 
-## 12. Files Excluded From Git
+## 13. Update On 2026-05-14: Official-Like Validation And AlphaGate
+
+### 13.1 New Official-Like Validation
+
+新增脚本：
+
+- `starter_code/scripts/make_noisy_as_pred.py`
+- `starter_code/scripts/grid_noise_schedule.py`
+- `starter_code/scripts/evaluate_candidate_table.py`
+
+目标是构造更接近官方反馈的 validation。当前选用：
+
+```text
+starter_code/local_eval_official_low
+sigmas      = 0.0050, 0.0055, 0.0060, 0.0065
+noise_types = gaussian, laplace, anisotropic
+outlier_p   = 0.0005
+```
+
+该 validation 的 noisy 统计：
+
+```text
+mean_CD_noisy  = 0.00026112
+mean_P2S_noisy = 0.00017076
+```
+
+它比早期 `local_eval_testcats_100` 更接近官方 `mean_CD_noisy ~= 0.000246`。
+
+### 13.2 Alpha And Weak Postprocess Results
+
+在 official-like validation 上重新评估全局 alpha：
+
+```text
+a550  score=50.98
+a650  score=56.21
+a750  score=60.19
+a850  score=62.93
+a1000 score=64.76
+```
+
+这说明在该 validation 上 `alpha=1.0` 最好，但官方反馈中 `alpha=0.85` 更好，二者存在 domain gap。因此只靠全局 alpha 继续搜索风险很高。
+
+新增 `adaptive_displacement_clip.py`，按 noisy 的局部 kNN 半径裁剪 base displacement：
+
+```text
+base_a1000      score=64.76 CD=53.97 P2S=75.55
+clip_k16_s1000 score=65.00 CD=54.26 P2S=75.75
+```
+
+结论：异常位移裁剪有弱增益，但只有 +0.24，不能作为 70/90 分突破。
+
+### 13.3 Oracle Alpha Analysis
+
+新增 oracle 分析：固定 base 预测方向，只用 clean 计算每个点沿 base displacement 的最优 alpha。
+
+```text
+base_a1000                 score=64.76 CD=53.97 P2S=75.55
+oracle_dir_alpha_clip015   score=71.81 CD=62.04 P2S=81.59
+```
+
+这是目前最重要的诊断结果：
+
+- base displacement 方向仍有价值；
+- 真正缺的是每点“走多远”的 step/gate；
+- 如果能学习接近 oracle 的 alpha，70+ 是有现实空间的；
+- 但 90+ 仍需要更强的模型、训练分布和官方反馈闭环。
+
+### 13.4 Sklearn Alpha Gate
+
+用户允许安装依赖后，在 `jt` 环境安装：
+
+```text
+scikit-learn==1.3.2
+joblib
+threadpoolctl
+```
+
+新增脚本：
+
+- `starter_code/scripts/fit_alpha_gate_sklearn.py`
+- `starter_code/scripts/fit_alpha_gate_ridge.py`
+- `starter_code/scripts/ratio_alpha_gate.py`
+
+使用测试时可得特征训练 alpha regressor：
+
+- base displacement
+- displacement norm
+- noisy local radius
+- displacement/radius ratio
+- PCA linearity/planarity/scattering/anisotropy
+- point radial position
+
+结果：
+
+```text
+base_a1000         score=64.76 CD=53.97 P2S=75.55
+sklearn_hgb_gate   score=66.59 CD=56.04 P2S=77.13
+sklearn_rf_gate    score=66.72 CD=56.19 P2S=77.26
+hgb_oof            score=66.16 CD=55.62 P2S=76.70
+oracle_dir_alpha   score=71.81 CD=62.04 P2S=81.59
+```
+
+`hgb_oof` 使用 group K-fold，使每个样本由没见过该样本的 gate 预测，因此比 full-fit 更接近真实泛化。它仍比 base 高 +1.40，说明自适应 alpha 不是纯过拟合。
+
+### 13.5 AlphaGateRefiner
+
+新增模型：
+
+- `starter_code/src/model/low_noise_refiner.py::AlphaGateRefiner`
+- `starter_code/configs/model/alpha_gate_refiner_pct_neighbor.yaml`
+- `starter_code/configs/system/alpha_gate_refiner.yaml`
+- `starter_code/configs/task/debug_alpha_gate_refiner.yaml`
+- `starter_code/configs/task/train_alpha_gate_refiner_fast.yaml`
+
+核心公式：
+
+```python
+pc_base = frozen_vm(noisy)
+alpha = AlphaGate(noisy, pc_base, pc_base - noisy, local_features)
+denoised = noisy + alpha * (pc_base - noisy)
+```
+
+训练目标：
+
+```text
+loss_point    : denoised vs clean
+loss_patch_cd : local patch CD
+loss_alpha    : alpha vs clipped oracle alpha
+loss_repulsion: point distribution preservation
+```
+
+这个设计刻意避免自由 residual direction，因为之前 residual/refiner 分支会破坏已有方向，导致分数低于 base。AlphaGate 只控制步长，直接对齐 oracle 分析。
+
+Smoke test 已通过：
+
+```text
+task: configs/task/debug_alpha_gate_refiner.yaml
+steps: 2
+loss: about 0.026-0.027
+CUDA enabled
+```
+
+Jittor 在 sandbox 内无法写 `/data/qiaojiaxuan/jittor_home` lock，因此 Jittor 训练需要在 sandbox 外运行。
+
+### 13.6 Current Deliverables
+
+当前可交付结果：
+
+```text
+starter_code/result.zip
+source = starter_code/results_test_v6_blend_noisy_official_a850.zip
+sha256 = 22590557f6e7ad34d658b581b4939bfb7ba9ae6ca32c2540bf6873c75979abb2
+known official score = 59.37
+```
+
+当前尚未完成：
+
+- AlphaGate 长训练；
+- AlphaGate checkpoint 的 official-like validation；
+- AlphaGate 官方测试集预测包；
+- 官方提交闭环验证。
+
+因此项目目标 `official_score > 90` 仍未达成，当前工作重点是用 AlphaGate 尝试突破 66-72 的区间。
+
+## 14. Files Excluded From Git
 
 为了避免 GitHub 仓库过大或泄漏生成数据，以下内容未纳入 Git：
 
@@ -498,4 +681,3 @@ thin/edge-rich geometry: higher alpha, preserve surface projection
 - Jittor cache / Python cache
 
 这些文件仍保留在服务器工作目录中，用于继续实验和提交。
-

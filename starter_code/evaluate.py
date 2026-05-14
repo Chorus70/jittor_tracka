@@ -87,7 +87,29 @@ def load_mesh_vf(path):
             mesh = trimesh.util.concatenate(tuple(mesh.geometry.values()))
         return np.array(mesh.vertices, dtype=np.float64), np.array(mesh.faces, dtype=np.int32)
     except ImportError:
-        return None, None
+        vertices = []
+        faces = []
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.startswith("v "):
+                    parts = line.strip().split()
+                    if len(parts) >= 4:
+                        vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                elif line.startswith("f "):
+                    parts = line.strip().split()[1:]
+                    face = []
+                    for part in parts:
+                        idx = part.split("/")[0]
+                        if idx:
+                            face.append(int(idx) - 1)
+                    if len(face) >= 3:
+                        # Triangulate polygons with a simple fan. ShapeNet objs
+                        # are usually triangles, but this keeps the fallback robust.
+                        for i in range(1, len(face) - 1):
+                            faces.append([face[0], face[i], face[i + 1]])
+        if not vertices or not faces:
+            return None, None
+        return np.asarray(vertices, dtype=np.float64), np.asarray(faces, dtype=np.int32)
 
 
 # ======================== 归一化 ========================

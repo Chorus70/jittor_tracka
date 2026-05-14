@@ -1,0 +1,33 @@
+train_transform:
+  augments:
+    - __target__: sample
+      num_samples: 50000
+      num_vertex_samples: 4096
+
+    - __target__: normalize_pc
+
+    - __target__: add_noise
+      noise_std_min: 0.0045
+      noise_std_max: 0.0070
+      distribution: mixed
+      anisotropic_p: 0.10
+      outlier_p: 0.0005
+      outlier_std_multiplier: 2.5
+
+    - __target__: linear
+      scale: [0.98, 1.02]
+      rotate_x_range: [-180, 180]
+      rotate_y_range: [-180, 180]
+      rotate_z_range: [-180, 180]
+      scale_p: 0.10
+      rotate_p: 0.35
+
+    - __target__: patch
+      patch_size: 1600
+      num_patches: 2
+      train_cvm_network: False
+      compute_normals: False
+      compute_geometry: False
+
+predict_transform:
+  augments: []

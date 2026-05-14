@@ -1,0 +1,5 @@
+name,pred_dir,final_score,cd_score,p2s_score,mean_cd_pred,mean_cd_noisy,mean_p2s_pred,mean_p2s_noisy,mean_disp
+base_a1000,results_official_low_ft19_alpha_a1000,64.76,53.97,75.55,0.00011644,0.00026112,4.022e-05,0.00017076,0.004279343876987696
+clip_k16_s1000,results_official_low_ft19_adaptive_clip_k16_s1000,65.0,54.26,75.75,0.0001156,0.00026112,3.986e-05,0.00017076,0.0041853575967252254
+clip_k32_s0950,results_official_low_ft19_adaptive_clip_k32_s0950,64.94,54.17,75.71,0.00011584,0.00026112,3.989e-05,0.00017076,0.004240299575030804
+clip_k48_s0850,results_official_low_ft19_adaptive_clip_k48_s0850,64.89,54.13,75.66,0.00011596,0.00026112,4e-05,0.00017076,0.004234984517097473

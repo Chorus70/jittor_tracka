@@ -1,0 +1,24 @@
+mode: train
+debug: False
+load_ckpt: experiments/vm_finetune/checkpoint_19.pkl
+
+components:
+  data: train_fast_b8_w8
+  transform: finetune_vm_official_low
+  system: vm_finetune_low_noise
+  model: vm_robust_ft
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.000005
+
+trainer:
+  epochs: 4
+  save_every: 1
+  save_every_steps: 300
+  lr_decay: 0.5
+  lr_decay_every: 2
+  loss_ema_alpha: 0.98

@@ -1,0 +1,6 @@
+# Candidate Baseline Table
+
+| name | final | CD | P2S | mean_CD_pred | mean_CD_noisy | mean_P2S_pred | mean_P2S_noisy | mean_disp |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| oracle_dir_alpha_clip015 | 71.81 | 62.04 | 81.59 | 0.00009494 | 0.00026112 | 0.00003001 | 0.00017076 | 0.003926 |
+| base_a1000 | 64.76 | 53.97 | 75.55 | 0.00011644 | 0.00026112 | 0.00004022 | 0.00017076 | 0.004279 |

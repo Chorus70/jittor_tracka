@@ -1,0 +1,3 @@
+name,pred_dir,final_score,cd_score,p2s_score,mean_cd_pred,mean_cd_noisy,mean_p2s_pred,mean_p2s_noisy,mean_disp
+low_noise_e0_s300,results_official_low_vm_finetune_low_noise_e0_s300,63.86,53.46,74.25,0.0001178,0.00026112,4.251e-05,0.00017076,0.003837007097899914
+base_ft19,results_official_low_ft19_alpha_a1000,64.76,53.97,75.55,0.00011644,0.00026112,4.022e-05,0.00017076,0.004279343876987696

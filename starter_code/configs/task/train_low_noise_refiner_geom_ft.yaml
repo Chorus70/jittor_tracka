@@ -1,0 +1,30 @@
+mode: train
+debug: False
+load_ckpt: experiments/low_noise_refiner_pct_neighbor/checkpoint.pkl
+
+components:
+  data: train_fast_b8
+  transform: finetune_low_noise_refiner
+  model: low_noise_refiner_pct_neighbor
+  system: low_noise_refiner
+
+loss:
+  loss_point: 1.0
+  loss_patch_cd: 0.25
+  loss_surface: 0.12
+  loss_tangent: 0.04
+  loss_gate: 0.03
+  loss_repulsion: 0.002
+  loss_anchor: 0.10
+
+optimizer:
+  __target__: adam
+  lr: 0.00001
+
+trainer:
+  epochs: 2
+  save_every: 1
+  save_every_steps: 300
+  lr_decay: 0.5
+  lr_decay_every: 1
+  loss_ema_alpha: 0.98

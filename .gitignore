@@ -11,6 +11,7 @@ starter_code/dataset_train/
 starter_code/dataset_test_noisy/
 starter_code/dataset_test_noisy
 starter_code/local_eval*/
+starter_code/local_eval*
 starter_code/results*/
 starter_code/post_grid*/
 starter_code/result*.zip

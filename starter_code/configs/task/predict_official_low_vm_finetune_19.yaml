@@ -1,0 +1,15 @@
+mode: predict
+debug: False
+load_ckpt: experiments/vm_finetune/checkpoint_19.pkl
+
+components:
+  data: predict_official_low
+  transform: predict
+  model: vm_robust_ft
+  system: vm_finetune
+
+writer:
+  __target__: vm
+  save_dir: results_official_low_ft19
+  save_name: denoised
+  output_format: npy
