@@ -666,6 +666,44 @@ known official score = 59.37
 
 因此项目目标 `official_score > 90` 仍未达成，当前工作重点是用 AlphaGate 尝试突破 66-72 的区间。
 
+### 13.7 AlphaGate Long-Run Evaluation
+
+AlphaGate 长训练已完成：
+
+```text
+task       = configs/task/train_alpha_gate_refiner_fast.yaml
+epochs     = 8
+steps/ep   = 1200 effective steps
+checkpoint = experiments/alpha_gate_refiner_pct_neighbor/checkpoint_7.pkl
+final train mean loss = 0.017517
+final EMA loss        = 0.017712
+```
+
+随后使用官方低噪本地验证划分预测：
+
+```text
+task = configs/task/predict_official_low_alpha_gate_final.yaml
+output = results_official_low_alpha_gate_final
+```
+
+完整 CD/P2S 对比结果：
+
+| name | final | CD | P2S | mean_CD_pred | mean_P2S_pred | mean_disp |
+|---|---:|---:|---:|---:|---:|---:|
+| rf_gate | 66.72 | 56.19 | 77.26 | 0.00011006 | 0.00003670 | 0.003942 |
+| hgb_oof | 66.16 | 55.62 | 76.70 | 0.00011156 | 0.00003763 | 0.003916 |
+| adaptive_clip_k16_s1000 | 65.00 | 54.26 | 75.75 | 0.00011560 | 0.00003986 | 0.004185 |
+| base_a1000 | 64.76 | 53.97 | 75.55 | 0.00011644 | 0.00004022 | 0.004279 |
+| alpha_gate_final | 59.74 | 50.01 | 69.46 | 0.00012834 | 0.00005287 | 0.003407 |
+
+结论：
+
+- AlphaGate 长训没有超过现有后处理/gate 路线，反而低于 base alpha。
+- 它的 mean displacement 明显偏小，说明学到的 gate 过于保守，P2S 损失尤其差。
+- 这不是 checkpoint 缺失或预测配置错误，`checkpoint_7.pkl` 存在且已被预测脚本加载。
+- 当前不应使用 AlphaGate 结果替换 `starter_code/result.zip`。
+- 目前本地验证最强仍是 `rf_gate` / `hgb_oof`，但 official 已验证过 `a850` 只有 59.37，因此本地验证到官方测试存在分布差异，后续需要新的官方反馈闭环或更可靠的验证拆分。
+
 ## 14. Files Excluded From Git
 
 为了避免 GitHub 仓库过大或泄漏生成数据，以下内容未纳入 Git：
