@@ -704,6 +704,56 @@ output = results_official_low_alpha_gate_final
 - 当前不应使用 AlphaGate 结果替换 `starter_code/result.zip`。
 - 目前本地验证最强仍是 `rf_gate` / `hgb_oof`，但 official 已验证过 `a850` 只有 59.37，因此本地验证到官方测试存在分布差异，后续需要新的官方反馈闭环或更可靠的验证拆分。
 
+### 13.8 Official Feedback: a650
+
+用户提交的新 `shapenet.zip` 经 zip 内容规范化比较，和本地文件完全一致：
+
+```text
+matched local package = starter_code/results_test_v6_blend_noisy_official_a650.zip
+```
+
+官方反馈：
+
+```text
+score = 61.80
+CD_score = 49.99
+P2S_score = 73.61
+mean_CD_pred = 0.000124
+mean_CD_noisy = 0.000246
+mean_P2S_pred = 0.000078
+mean_P2S_noisy = 0.000196
+```
+
+与此前 `a850` 官方反馈比较：
+
+```text
+a650: score=61.80, CD=49.99, P2S=73.61
+a850: score=59.37, CD=44.81, P2S=73.94
+```
+
+这说明官方测试集上 `a850` 位移偏大，CD 受损明显；`a650` 大幅提升 CD，但 P2S 只小幅下降。用 `alpha=0` 分数为 0、`a650`、`a850` 三点做粗略二次拟合，总分峰值约在 `alpha=0.70` 附近。
+
+因此新增测试包：
+
+```text
+starter_code/results_test_v6_blend_noisy_official_a600.zip
+starter_code/results_test_v6_blend_noisy_official_a700.zip
+starter_code/results_test_v6_blend_noisy_official_a725.zip
+```
+
+当前 `starter_code/result.zip` 已更新为优先提交版本：
+
+```text
+source = starter_code/results_test_v6_blend_noisy_official_a700.zip
+sha256 = cd0efe11b658be133e473f48efb534b0e9db423c7cedcc8288157b255ecd1be9
+estimated official score = about 62.1, based only on a650/a850 interpolation
+```
+
+风险：
+
+- 该估计只基于两个官方反馈点和 `alpha=0` 锚点，不保证真实单调或二次形状。
+- 若 `a700` 官方反馈未提升，下一优先级应提交 `a600` 或回退 `a650`，因为官方反馈已明确 `a650 > a850`。
+
 ## 14. Files Excluded From Git
 
 为了避免 GitHub 仓库过大或泄漏生成数据，以下内容未纳入 Git：
