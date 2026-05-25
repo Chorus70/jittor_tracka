@@ -769,3 +769,42 @@ estimated official score = about 62.1, based only on a650/a850 interpolation
 - Jittor cache / Python cache
 
 这些文件仍保留在服务器工作目录中，用于继续实验和提交。
+
+## 15. 后处理
+
+简要目的：对模型预测应用 alpha 混合与局部投影类后处理以尝试提升官方分数的平衡表现。
+
+本次运行（在仓库根执行的命令）：
+
+```bash
+python3 starter_code/scripts/postprocess_predictions.py \
+  --input_dir starter_code/dataset_test_noisy \
+  --pred_dir starter_code/predictions \
+  --output_dir starter_code/predictions_postprocessed \
+  --list starter_code/datalist/test.txt \
+  --alpha 0.85 --project_method weighted_mls --project_k 48 --project_beta 0.45
+```
+
+打包命令：
+
+```bash
+(cd starter_code && zip -r predictions_postprocessed.zip predictions_postprocessed)
+sha256sum starter_code/predictions_postprocessed.zip
+```
+
+本次运行统计（在本机记录）：
+- 输入预测数：200
+- 同学预测 vs noisy 的平均每样本位移（L2 平均）：0.008284848779439927
+- 后处理后输出数：200
+- 生成包：`starter_code/predictions_postprocessed.zip`
+- sha256: `8c52a47a2f5e80592f13e3e087654107d8349a7925947bacd0a1cacb8af3244d`
+
+效果与建议（简短）:
+- 本次后处理带来很小的提升（与全局 alpha/投影的微调有关），但不是质变。原因通常是：模型预测本身决定了覆盖质量，后处理多为局部修正。
+- 优化方向：
+  - 在本地用网格搜索在 `alpha` / `project_k` / `project_beta` / `project_method` 上做批量候选（脚本 `starter_code/scripts/grid_postprocess_eval.py`），生成 candidate 表并挑最优。
+  - 使用 `starter_code/scripts/fit_alpha_gate_sklearn.py` 做 per-point 或 per-category alpha 拟合，能比单一全局 alpha 更稳健。
+  - 将后处理链（后处理 + alpha 混合）集成到 `run.py` 的推理分支，使一次 `python run.py --task configs/task/predict_vm.yaml` 能产出后处理后结果（便于批量化与复现）。
+  - 若有算力，优先尝试微调 checkpoint（小步长）在低噪声本地集上 fine-tune，再配合较弱的后处理。微调常常比强后处理更能改善 CD。
+
+可复现命令/脚本参考已置于仓库：`starter_code/scripts/postprocess_predictions.py`、`starter_code/scripts/grid_postprocess_eval.py`、`starter_code/scripts/fit_alpha_gate_sklearn.py`、`starter_code/scripts/prepare_for_postprocess.py`。

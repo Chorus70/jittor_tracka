@@ -23,6 +23,8 @@ starter_code/logs/
 starter_code/*.log
 starter_code/logs_*.log
 starter_code/logs*.log
+starter_code/predictions*/
+*.zip
 
 # Jittor/cache/runtime files
 .cache/
