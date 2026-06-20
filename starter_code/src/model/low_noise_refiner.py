@@ -104,7 +104,7 @@ class LowNoiseAdaptiveRefiner(ModelSpec):
         if self.base_model is None:
             return pc_noisy
         with jt.no_grad():
-            pred = self.base_model._decode_direction(self.base_model._encoder_input(pc_noisy))
+            pred, _alpha = self.base_model._decode_direction(self.base_model._encoder_input(pc_noisy))
             scale = self.base_model._condition_scale(None)
             if scale is not None:
                 pred = pred * scale

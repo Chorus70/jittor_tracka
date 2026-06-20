@@ -10,6 +10,7 @@ import trimesh
 
 from .asset import Asset
 from .spec import ConfigSpec
+from .utils import compute_face_normals, compute_vertex_normals
 
 @dataclass
 class LazyAsset(ABC):
@@ -29,11 +30,20 @@ class ObjLazyAsset(LazyAsset):
         mesh = trimesh.load(self.path, process=False)
         if isinstance(mesh, trimesh.Scene):
             mesh = trimesh.util.concatenate(tuple(mesh.geometry.values()))
+        vertices = np.array(mesh.vertices)  # type: ignore
+        faces = np.array(mesh.faces)  # type: ignore
+
+        # Compute ground-truth face and vertex normals from mesh
+        face_normals = compute_face_normals(vertices, faces)
+        vertex_normals = compute_vertex_normals(vertices, faces, face_normals=face_normals)
+
         asset = Asset(
             path=self.path,
             cls=self.cls,
-            vertices=np.array(mesh.vertices), # type: ignore
-            faces=np.array(mesh.faces), # type: ignore
+            vertices=vertices,
+            faces=faces,
+            face_normals=face_normals,
+            vertex_normals=vertex_normals,
         )
         return asset
 

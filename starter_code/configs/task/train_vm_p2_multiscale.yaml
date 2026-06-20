@@ -1,0 +1,21 @@
+mode: train
+debug: False
+
+components:
+  data: train_fast_b8
+  transform: finetune_narrow_noise
+  system: vm_p2_multiscale
+  model: vm_multiscale_fusion
+
+loss:
+  loss: 1.0
+
+optimizer:
+  __target__: adam
+  lr: 0.0005
+
+trainer:
+  epochs: 20
+  save_every: 5
+  lr_decay: 0.7
+  lr_decay_every: 8

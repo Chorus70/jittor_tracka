@@ -6,7 +6,7 @@ import jittor as jt
 import numpy as np
 from jittor import nn
 
-from .feature import EdgePCTHybridFeatureExtraction, EdgePCTResidualFeatureExtraction, FeatureExtraction, PCTDenoiseFeatureExtraction, PCTFeatureExtraction, PCTHierarchicalFeatureExtraction, PCTNeighborFeatureExtraction, PCTRefineLocalFeatureExtraction, Decoder
+from .feature import CrossScaleAttention, Decoder, EdgePCTHybridFeatureExtraction, EdgePCTResidualFeatureExtraction, FeatureExtraction, MultiScaleFusion, PCTDenoiseFeatureExtraction, PCTFeatureExtraction, PCTHierarchicalFeatureExtraction, PCTNeighborFeatureExtraction, PCTRefineLocalFeatureExtraction, UNetFeatureExtraction, VectorAttentionEncoder
 from .spec import ModelSpec
 
 from ..data.asset import Asset
@@ -63,6 +63,7 @@ class VelocityModule(ModelSpec):
         self.predict_dynamics = cfg.get('predict_dynamics', 'euler')
         self.predict_sigma_min = cfg.get('predict_sigma_min', cfg.get('noise_condition_min', 0.004))
         self.predict_sigma_max = cfg.get('predict_sigma_max', cfg.get('noise_condition_max', 0.024))
+        self.predict_sigma_schedule = cfg.get('predict_sigma_schedule', 'exp')
         self.predict_score_step_scale = cfg.get('predict_score_step_scale', 0.6)
         self.predict_score_momentum = cfg.get('predict_score_momentum', 0.0)
         self.predict_patch_size = cfg.get('predict_patch_size', 1000)
@@ -87,6 +88,8 @@ class VelocityModule(ModelSpec):
         self.geometry_dim = cfg.get('geometry_dim', 4)
         self.multi_scale_knns = cfg.get('multi_scale_knns', [])
         self.multi_scale_weight = cfg.get('multi_scale_weight', 0.15)
+        self.use_ms_fusion = cfg.get('use_ms_fusion', False)
+        self.ms_fusion_hidden_dim = cfg.get('ms_fusion_hidden_dim', 64)
         self.repulsion_weight = cfg.get('repulsion_weight', 0.0)
         self.repulsion_k = cfg.get('repulsion_k', 6)
         self.repulsion_h = cfg.get('repulsion_h', 0.018)
@@ -95,6 +98,17 @@ class VelocityModule(ModelSpec):
         self.reliability_loss_weight = cfg.get('reliability_loss_weight', 0.0)
         self.reliability_sigma_scale = cfg.get('reliability_sigma_scale', 2.0)
         self.unreliable_anchor_weight = cfg.get('unreliable_anchor_weight', 0.0)
+
+        # Alpha gate (per-point step control)
+        self.use_alpha_gate = cfg.get('use_alpha_gate', False)
+        self.alpha_gate_hidden_dim = cfg.get('alpha_gate_hidden_dim', 128)
+        self.alpha_min = cfg.get('alpha_min', 0.0)
+        self.alpha_max = cfg.get('alpha_max', 1.5)
+        self.alpha_loss_weight = cfg.get('alpha_loss_weight', 0.05)
+
+        # Training-time CD and P2S loss
+        self.cd_loss_weight = cfg.get('cd_loss_weight', 0.0)
+        self.p2s_loss_weight = cfg.get('p2s_loss_weight', 0.0)
         self.manifold_loss_weight = cfg.get('manifold_loss_weight', 0.0)
         self.manifold_cover_weight = cfg.get('manifold_cover_weight', 0.0)
         self.manifold_k = cfg.get('manifold_k', 8)
@@ -215,6 +229,26 @@ class VelocityModule(ModelSpec):
                     use_input_coords=cfg.get(f'{prefix}use_input_coords', cfg.get('use_input_coords', False)),
                     knn_coord_dim=3,
                 )
+            elif encoder_type == 'vector_attn':
+                return VectorAttentionEncoder(
+                    k=k,
+                    input_dim=input_dim,
+                    embedding_dim=embedding_dim,
+                    attention_channels=cfg.get(f'{prefix}pct_attention_channels', cfg.get('pct_attention_channels', 128)),
+                    num_attention_layers=cfg.get(f'{prefix}pct_num_attention_layers', cfg.get('pct_num_attention_layers', default_attention_layers)),
+                    use_global_feature=cfg.get(f'{prefix}use_global_feature', cfg.get('use_global_feature', False)),
+                    use_input_coords=cfg.get(f'{prefix}use_input_coords', cfg.get('use_input_coords', False)),
+                    knn_coord_dim=3,
+                    use_position_embedding=cfg.get(f'{prefix}pct_use_position_embedding', cfg.get('pct_use_position_embedding', True)),
+                )
+            elif encoder_type == 'unet':
+                return UNetFeatureExtraction(
+                    input_dim=input_dim,
+                    embedding_dim=embedding_dim,
+                    use_global_feature=cfg.get(f'{prefix}use_global_feature', cfg.get('use_global_feature', False)),
+                    use_input_coords=cfg.get(f'{prefix}use_input_coords', cfg.get('use_input_coords', False)),
+                    knn_coord_dim=3,
+                )
             else:
                 raise ValueError(f"unsupported encoder_type: {encoder_type}")
 
@@ -246,6 +280,20 @@ class VelocityModule(ModelSpec):
             self.reliability_lin_2 = nn.Linear(self.reliability_hidden_dim, 1)
             self.reliability_act = nn.ReLU()
 
+        # Alpha gate MLP (predicts per-point blend factor)
+        if self.use_alpha_gate:
+            embedding_dim = cfg['feat_embedding_dim']
+            if self.use_global_feature:
+                embedding_dim += cfg['feat_embedding_dim']
+            if cfg.get('use_input_coords', False):
+                embedding_dim += 3
+            self.alpha_gate_lin_1 = nn.Linear(embedding_dim, self.alpha_gate_hidden_dim)
+            self.alpha_gate_lin_2 = nn.Linear(self.alpha_gate_hidden_dim, 1)
+            self.alpha_gate_act = nn.ReLU()
+            # Zero-init for stability
+            self.alpha_gate_lin_2.weight.assign(jt.zeros_like(self.alpha_gate_lin_2.weight))
+            self.alpha_gate_lin_2.bias.assign(jt.zeros_like(self.alpha_gate_lin_2.bias))
+
         for i, k in enumerate(self.multi_scale_knns):
             encoder = build_encoder(
                 encoder_type=cfg.get('multi_scale_encoder_type', 'edgeconv'),
@@ -263,6 +311,14 @@ class VelocityModule(ModelSpec):
             )
             setattr(self, f"multi_encoder_{i}", encoder)
             setattr(self, f"multi_decoder_{i}", decoder)
+
+        # Multi-scale fusion module
+        if self.multi_scale_knns and self.use_ms_fusion:
+            self.ms_fusion = MultiScaleFusion(
+                num_scales=len(self.multi_scale_knns) + 1,  # +1 for main encoder
+                feature_dim=cfg['feat_embedding_dim'],
+                hidden_dim=self.ms_fusion_hidden_dim,
+            )
 
         if self.use_refiner:
             refine_encoder_type = cfg.get('refine_encoder_type', 'edgeconv')
@@ -453,7 +509,7 @@ class VelocityModule(ModelSpec):
         pc_noise_std=None,
         pc_geom=None,
     ):
-        pred = model._decode_direction(
+        pred, alpha = model._decode_direction(
             model._encoder_input(
                 pc,
                 pc_t=pc_t,
@@ -469,7 +525,7 @@ class VelocityModule(ModelSpec):
         scale = model._condition_scale(pc_noise_std)
         if scale is not None:
             pred = pred * scale
-        return pred
+        return pred, alpha
 
     def _decode_refine_direction(self, refiner_input, pnt_idx=None):
         feat = self.refine_encoder(refiner_input)
@@ -546,9 +602,24 @@ class VelocityModule(ModelSpec):
         cond_bias = self._condition_bias(pc_t, pc_noise_std, encoder_input.shape[0], encoder_input.shape[1], pnt_idx=pnt_idx)
         if cond_bias is not None:
             feat = feat + cond_bias
-        pred = self.decoder(c=feat.reshape(-1, F_dim)).reshape(B, N, 3)
 
-        if self.multi_scale_knns:
+        alpha = None
+
+        if self.multi_scale_knns and self.use_ms_fusion:
+            # Learned multi-scale fusion
+            all_feats = [feat]
+            for i in range(len(self.multi_scale_knns)):
+                encoder = getattr(self, f"multi_encoder_{i}")
+                ms_feat = encoder(encoder_input)
+                if pnt_idx is not None:
+                    ms_feat = ms_feat[:, pnt_idx, :]
+                all_feats.append(ms_feat)
+            fused_feat = self.ms_fusion(all_feats)
+            _, _, fused_dim = fused_feat.shape
+            pred = self.decoder(c=fused_feat.reshape(-1, fused_dim)).reshape(B, N, 3)
+        elif self.multi_scale_knns:
+            # Original additive fusion
+            pred = self.decoder(c=feat.reshape(-1, F_dim)).reshape(B, N, 3)
             for i in range(len(self.multi_scale_knns)):
                 encoder = getattr(self, f"multi_encoder_{i}")
                 decoder = getattr(self, f"multi_decoder_{i}")
@@ -558,7 +629,20 @@ class VelocityModule(ModelSpec):
                 _, _, ms_dim = ms_feat.shape
                 ms_pred = decoder(c=ms_feat.reshape(-1, ms_dim)).reshape(B, N, 3)
                 pred = pred + self.multi_scale_weight * ms_pred
-        return pred
+        else:
+            pred = self.decoder(c=feat.reshape(-1, F_dim)).reshape(B, N, 3)
+
+        # Alpha gate: predict per-point blend factor
+        if self.use_alpha_gate:
+            alpha_raw = self.alpha_gate_lin_1(feat.reshape(-1, F_dim))
+            alpha_raw = self.alpha_gate_act(alpha_raw)
+            alpha_01 = jt.sigmoid(self.alpha_gate_lin_2(alpha_raw)).reshape(B, N, 1)
+            alpha = self.alpha_min + (self.alpha_max - self.alpha_min) * alpha_01
+            # Apply alpha to blend between noisy (pred=0) and full denoising (pred)
+            # This is applied AFTER the decoder — alpha controls step size
+            pred = pred * alpha
+
+        return pred, alpha
 
     def _decode_reliability(self, encoder_input, pnt_idx=None, pc_t=None, pc_noise_std=None):
         if not self.use_reliability:
@@ -674,7 +758,7 @@ class VelocityModule(ModelSpec):
             grad_dir_t_target = target_normal + self.target_tangent_weight * target_tangent
         
         # decoder
-        pred_dir = self._predict_direction_from_model(
+        pred_dir, pred_alpha = self._predict_direction_from_model(
             self,
                 pc_mix_full,
                 pnt_idx=pnt_idx,
@@ -682,7 +766,7 @@ class VelocityModule(ModelSpec):
                 pc_noise_std=pc_noise_std_full,
                 pc_geom=pc_geom_full,
         )
-        
+
         err = pred_dir - grad_dir_t_target
         if self.loss_type == 'mse':
             loss = self._point_mean(((err ** 2.0) / self.dsm_sigma).sum(dim=-1), point_weight)
@@ -749,6 +833,25 @@ class VelocityModule(ModelSpec):
         repulsion_loss = self._repulsion_loss(pc_mix + pred_dir)
         if repulsion_loss is not None:
             loss = loss + self.repulsion_weight * repulsion_loss
+
+        # Alpha gate loss: supervise the per-point alpha
+        if self.use_alpha_gate and pred_alpha is not None:
+            target_disp = pc_clean - pc_noisy
+            pred_dir_norm = jt.sqrt((pred_dir ** 2.0).sum(dim=-1, keepdims=True) + 1e-8)
+            # Optimal alpha = projection of target onto pred_dir direction, divided by |pred_dir|
+            alpha_target = (target_disp * pred_dir).sum(dim=-1, keepdims=True) / (pred_dir_norm ** 2.0 + 1e-8)
+            alpha_target = jt.maximum(jt.minimum(alpha_target, self.alpha_max), self.alpha_min)
+            alpha_loss_val = self._point_mean(((pred_alpha - alpha_target) ** 2.0).squeeze(-1), point_weight)
+            loss = loss + self.alpha_loss_weight * alpha_loss_val
+
+        # Training-time CD loss (Chamfer Distance proxy)
+        if self.cd_loss_weight > 0:
+            pc_pred_for_cd = pc_mix + pred_dir
+            dist_cd = ((pc_pred_for_cd.unsqueeze(2) - pc_clean.unsqueeze(1)) ** 2.0).sum(dim=-1)
+            pred_to_clean = jt.min(dist_cd, dim=2).mean()
+            clean_to_pred = jt.min(dist_cd, dim=1).mean()
+            cd_loss = (pred_to_clean + clean_to_pred) / self.dsm_sigma
+            loss = loss + self.cd_loss_weight * cd_loss
 
         pred_conf = None
         if self.use_reliability:
@@ -821,7 +924,7 @@ class VelocityModule(ModelSpec):
 
         if self.teacher_model is not None and self.teacher_distill_weight > 0:
             with jt.no_grad():
-                teacher_pred = self._predict_direction_from_model(
+                teacher_pred, _ = self._predict_direction_from_model(
                     self.teacher_model,
                     pc_mix_full,
                     pnt_idx=pnt_idx,
@@ -857,7 +960,7 @@ class VelocityModule(ModelSpec):
             point_weight = jt.exp(-self.loss_center_gamma * pc_seed_dist).squeeze(-1)
 
         with jt.no_grad():
-            base_dir_full = self._predict_direction_from_model(
+            base_dir_full, _ = self._predict_direction_from_model(
                 self.base_model,
                 pc_noisy,
                 pnt_idx=None,
@@ -953,7 +1056,7 @@ class VelocityModule(ModelSpec):
         B, N, d = pcl_noisy.shape
         with jt.no_grad():
             if self.use_refiner:
-                base_dir = self._predict_direction_from_model(self.base_model, pcl_noisy)
+                base_dir, _ = self._predict_direction_from_model(self.base_model, pcl_noisy)
                 base_clean = pcl_noisy + base_dir
                 refiner_input = jt.concat([pcl_noisy, base_clean, base_dir], dim=-1)
                 corr, gate = self._decode_refine_direction(refiner_input)
@@ -967,7 +1070,13 @@ class VelocityModule(ModelSpec):
                 if self.predict_dynamics == 'annealed_sigma_score':
                     denom = max(float(num_steps) - 1.0, 1.0)
                     frac = float(it) / denom
-                    sigma_value = self.predict_sigma_max * ((self.predict_sigma_min / self.predict_sigma_max) ** frac)
+                    if self.predict_sigma_schedule == 'cosine':
+                        # Cosine schedule: smoother transition
+                        import math as _math
+                        cos_frac = (1.0 + _math.cos(_math.pi * frac)) / 2.0
+                        sigma_value = self.predict_sigma_min + (self.predict_sigma_max - self.predict_sigma_min) * cos_frac
+                    else:
+                        sigma_value = self.predict_sigma_max * ((self.predict_sigma_min / self.predict_sigma_max) ** frac)
                     step_t = 1.0
                 elif t_value is None:
                     step_t = float(it) / max(float(num_steps), 1.0)
@@ -985,7 +1094,7 @@ class VelocityModule(ModelSpec):
                     elif len(sigma_value.shape) == 1:
                         sigma_value = sigma_value.reshape(-1, 1, 1)
                     pc_noise_std = sigma_value.broadcast((B, N, 1))
-                pred_dir = self._decode_direction(
+                pred_dir, _alpha = self._decode_direction(
                     self._encoder_input(pcl_next, pc_t=pc_t, pc_noise_std=pc_noise_std, pc_geom=pc_geom),
                     pc_t=pc_t,
                     pc_noise_std=pc_noise_std,

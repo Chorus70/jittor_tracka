@@ -42,8 +42,12 @@ class AugmentSample(Augment):
             faces=asset.faces,
             num_samples=self.num_samples,
             num_vertex_samples=self.num_vertex_samples,
+            vertex_normals=getattr(asset, 'vertex_normals', None),
+            face_normals=getattr(asset, 'face_normals', None),
         )
         asset.sampled_vertices = sampled_vertices
+        if sampled_normals is not None:
+            asset.sampled_normals = sampled_normals
 
 @dataclass(frozen=True)
 class AugmentNormalizePC(Augment):
@@ -223,10 +227,15 @@ class AugmentPatch(Augment):
         pat_B = pc[nn_idx]        # (P, M, 3)
         pat_normals = None
         if self.compute_normals:
-            pat_normals = np.stack(
-                [estimate_patch_normals(pat_B[i], k=self.normal_k) for i in range(self.num_patches)],
-                axis=0,
-            )
+            if hasattr(asset, 'sampled_normals') and asset.sampled_normals is not None:
+                # Use GT mesh normals indexed by patch indices
+                pat_normals = asset.sampled_normals[nn_idx]
+            else:
+                # Fall back to PCA estimation on clean patch
+                pat_normals = np.stack(
+                    [estimate_patch_normals(pat_B[i], k=self.normal_k) for i in range(self.num_patches)],
+                    axis=0,
+                )
 
         l1, l2 = 1e-8, 1.0
         t = np.random.rand(self.num_patches, self.patch_size, 1)

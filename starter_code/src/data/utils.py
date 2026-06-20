@@ -3,6 +3,63 @@ from typing import Optional, Tuple, Dict
 
 import numpy as np
 
+def compute_face_normals(vertices: ndarray, faces: ndarray) -> ndarray:
+    """Compute per-face unit normals from mesh vertices and faces.
+
+    Args:
+        vertices: (N, 3) array of vertex positions
+        faces: (F, 3) array of face indices
+
+    Returns:
+        face_normals: (F, 3) array of unit face normals
+    """
+    v0 = vertices[faces[:, 0]].astype(np.float64)
+    v1 = vertices[faces[:, 1]].astype(np.float64)
+    v2 = vertices[faces[:, 2]].astype(np.float64)
+    e1 = v1 - v0
+    e2 = v2 - v0
+    normals = np.cross(e1, e2, axis=-1)
+    norm = np.linalg.norm(normals, axis=-1, keepdims=True)
+    normals = normals / np.maximum(norm, 1e-12)
+    return normals.astype(np.float32)
+
+
+def compute_vertex_normals(vertices: ndarray, faces: ndarray, face_normals: Optional[ndarray]=None) -> ndarray:
+    """Compute per-vertex normals by area-weighted averaging of incident face normals.
+
+    Args:
+        vertices: (N, 3) array of vertex positions
+        faces: (F, 3) array of face indices
+        face_normals: (F, 3) optional pre-computed face normals
+
+    Returns:
+        vertex_normals: (N, 3) array of unit vertex normals
+    """
+    if face_normals is None:
+        face_normals = compute_face_normals(vertices, faces)
+
+    # Compute face areas for weighting
+    v0 = vertices[faces[:, 0]].astype(np.float64)
+    v1 = vertices[faces[:, 1]].astype(np.float64)
+    v2 = vertices[faces[:, 2]].astype(np.float64)
+    face_areas = 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0, axis=-1), axis=-1)
+
+    # Accumulate area-weighted normals
+    N = vertices.shape[0]
+    vertex_normals = np.zeros((N, 3), dtype=np.float64)
+    for fi in range(len(faces)):
+        f = faces[fi]
+        fn = face_normals[fi].astype(np.float64)
+        area = face_areas[fi]
+        for vi in f:
+            vertex_normals[vi] += fn * area
+
+    # Normalize
+    norms = np.linalg.norm(vertex_normals, axis=-1, keepdims=True)
+    vertex_normals = vertex_normals / np.maximum(norms, 1e-12)
+    return vertex_normals.astype(np.float32)
+
+
 def assert_ndarray(arr, name: str="arr", shape: Optional[Tuple[int, ...]]=None, dtype=None):
     if not isinstance(arr, np.ndarray):
         raise ValueError(f"{name} must be a numpy.ndarray or None, got {type(arr)}")
